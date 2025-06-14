@@ -41,7 +41,7 @@ namespace FasterPatchAll
             {
                 try
                 {
-                    Log.Message($"Harmony Patch Count: {Harmony.GetAllPatchedMethods().Count()}");
+                    Log.Message($"Harmony Patch Count: {Harmony.GetAllPatchedMethods().SelectMany(m => Harmony.GetPatchInfo(m).Owners).Count()}");
                 }
                 catch (Exception e)
                 {
@@ -108,7 +108,7 @@ namespace FasterPatchAll
                 .Where(FasterPatchAll.CanBeHarmonyClass)
                 .Do(type =>
                 {
-                __instance.CreateClassProcessor(type).Patch();
+                    __instance.CreateClassProcessor(type).Patch();
                 });
             return false;
         }
@@ -164,6 +164,11 @@ namespace FasterPatchAll
     [HarmonyPatch(typeof(StaticConstructorOnStartupUtility), nameof(StaticConstructorOnStartupUtility.CallAll))]
     internal class Patch_StaticConstructorOnStartupUtility_CallAll
     {
+        static bool Prepare()
+        {
+            return FasterPatchAll.Mod.Settings.CacheTypesByAssembly || FasterPatchAll.Mod.Settings.EarlyFiltering;
+        }
+
         static void Postfix()
         {
             LongEventHandler.ExecuteWhenFinished(FasterPatchAll.Mod.Clear);
