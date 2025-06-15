@@ -38,7 +38,7 @@ namespace FasterPatchAll
             if (Settings.EarlyFiltering)
             {
                 AllHarmonyPatchTypes = AppDomain.CurrentDomain.GetAssemblies()
-                    .Select(a => a.GetType("HarmonyLib.HarmonyPatch", false))
+                    .Select(a => a.GetType("HarmonyLib.HarmonyAttribute", false))
                     .Where(t => t != null)
                     .ToArray();
             }
