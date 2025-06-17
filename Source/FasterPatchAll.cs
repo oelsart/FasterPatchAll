@@ -23,8 +23,7 @@ namespace FasterPatchAll
 
         public FasterPatchAll(ModContentPack content) : base(content)
         {
-            stopwatch = new Stopwatch();
-            stopwatch.Start();
+            stopwatch = Stopwatch.StartNew();
             Mod = this;
             Settings = GetSettings<Settings>();
             Cache = new FasterPatchCache();

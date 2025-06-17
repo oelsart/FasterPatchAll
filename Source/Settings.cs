@@ -10,7 +10,7 @@ namespace FasterPatchAll
 
         public bool ReflectionCache = true;
 
-        public bool HarmonyMethodTraverseCache = false;
+        public bool HarmonyMethodTraverseCache = true;
 
         public override void ExposeData()
         {
