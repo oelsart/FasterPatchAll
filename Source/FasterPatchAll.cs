@@ -67,6 +67,8 @@ namespace FasterPatchAll
             listing_Standard.Begin(inRect.BottomPartPixels(inRect.height - 50f));
             listing_Standard.CheckboxLabeled("Cache types by assembly.", ref Settings.CacheTypesByAssembly);
             listing_Standard.CheckboxLabeled("Early filtering to get patch classes.", ref Settings.EarlyFiltering);
+            var text = "buffer";
+            listing_Standard.TextFieldNumericLabeled("Threshold of type count for early filtering.", ref Settings.EarlyFilterThreshold, ref text, 0, 100);
             listing_Standard.CheckboxLabeled("Cache HarmonyFields.", ref Settings.ReflectionCache);
             listing_Standard.CheckboxLabeled("Cache accessor for HarmonyMethod.", ref Settings.HarmonyMethodTraverseCache);
             listing_Standard.End();
