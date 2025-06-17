@@ -34,7 +34,8 @@ namespace FasterPatchAll
 
         public override void DoSettingsWindowContents(Rect inRect)
         {
-            if (Widgets.ButtonText(new Rect(0f, 0f, 350f, 50f), "Log Harmony Patch Count"))
+            var buttonWidth = inRect.width / 2f;
+            if (Widgets.ButtonText(new Rect(0f, 0f, buttonWidth, 50f), "Log Harmony Patch Count"))
             {
                 try
                 {
@@ -48,7 +49,7 @@ namespace FasterPatchAll
                     }
                 }
             }
-            if (Widgets.ButtonText(new Rect(inRect.width - 350f, 0f, 350f, 50f), "Log FasterPatchAll() Active Time"))
+            if (Widgets.ButtonText(new Rect(inRect.width - buttonWidth, 0f, buttonWidth, 50f), "Log FasterPatchAll() Active Time"))
             {
                 try
                 {
@@ -66,8 +67,10 @@ namespace FasterPatchAll
             listing_Standard.Begin(inRect.BottomPartPixels(inRect.height - 50f));
             listing_Standard.CheckboxLabeled("Cache types by assembly.", ref Settings.CacheTypesByAssembly);
             listing_Standard.CheckboxLabeled("Early filtering to get patch classes.", ref Settings.EarlyFiltering);
-            var text = "buffer";
-            listing_Standard.TextFieldNumericLabeled("Threshold of type count for early filtering.", ref Settings.EarlyFilterThreshold, ref text, 0, 100);
+            var rect = listing_Standard.GetRect(Text.LineHeight);
+            Widgets.Label(rect.LeftHalf(), "Threshold of type count for early filtering.");
+            var text = Settings.EarlyFilterThreshold.ToString();
+            Widgets.IntEntry(rect.RightHalf(), ref Settings.EarlyFilterThreshold, ref text);
             listing_Standard.CheckboxLabeled("Cache HarmonyFields.", ref Settings.ReflectionCache);
             listing_Standard.CheckboxLabeled("Cache accessor for HarmonyMethod.", ref Settings.HarmonyMethodTraverseCache);
             listing_Standard.End();
@@ -94,8 +97,6 @@ namespace FasterPatchAll
         {
             return "FasterPatchAll()";
         }
-
-        public const int EealyFilterThreshold = 400;
     }
 
     [HarmonyPatch(typeof(AccessTools), nameof(AccessTools.GetTypesFromAssembly))]
@@ -127,7 +128,7 @@ namespace FasterPatchAll
         static bool Prefix(Harmony __instance, Assembly assembly)
         {
             IEnumerable<Type> types = AccessTools.GetTypesFromAssembly(assembly);
-            if (types.Count() > FasterPatchAll.EealyFilterThreshold)
+            if (types.Count() > FasterPatchAll.Mod.Settings.EarlyFilterThreshold)
             {
                 types = types.Where(FasterPatchAll.Mod.CanBeHarmonyClass);
             }
@@ -150,7 +151,7 @@ namespace FasterPatchAll
         static bool Prefix(Harmony __instance, Assembly assembly, string category)
         {
             IEnumerable<Type> types = AccessTools.GetTypesFromAssembly(assembly);
-            if (types.Count() > FasterPatchAll.EealyFilterThreshold)
+            if (types.Count() > FasterPatchAll.Mod.Settings.EarlyFilterThreshold)
             {
                 types = types.Where(FasterPatchAll.Mod.CanBeHarmonyClass);
             }
@@ -178,7 +179,7 @@ namespace FasterPatchAll
         static bool Prefix(Harmony __instance, Assembly assembly)
         {
             IEnumerable<Type> types = AccessTools.GetTypesFromAssembly(assembly);
-            if (types.Count() > FasterPatchAll.EealyFilterThreshold)
+            if (types.Count() > FasterPatchAll.Mod.Settings.EarlyFilterThreshold)
             {
                 types = types.Where(FasterPatchAll.Mod.CanBeHarmonyClass);
             }
