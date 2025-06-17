@@ -8,6 +8,8 @@ namespace FasterPatchAll
 
         public bool EarlyFiltering = false;
 
+        public int EarlyFilterThreshold = 100;
+
         public bool ReflectionCache = true;
 
         public bool HarmonyMethodTraverseCache = true;
@@ -16,6 +18,7 @@ namespace FasterPatchAll
         {
             Scribe_Values.Look(ref CacheTypesByAssembly, "CacheTypesByAssembly", true);
             Scribe_Values.Look(ref EarlyFiltering, "EarlyFiltering", false);
+            Scribe_Values.Look(ref EarlyFilterThreshold, "EarlyFilterThreshold", 100);
             Scribe_Values.Look(ref ReflectionCache, "ReflectionCache", true);
             Scribe_Values.Look(ref HarmonyMethodTraverseCache, "HarmonyMethodTraverseCache", true);
         }
