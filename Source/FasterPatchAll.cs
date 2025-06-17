@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
-using UnityEngine.Profiling;
 using Verse;
 
 namespace FasterPatchAll
@@ -18,9 +17,7 @@ namespace FasterPatchAll
 
         public readonly Settings Settings;
 
-        public Dictionary<Assembly, Type[]> TypesByAssembly;
-
-        public static Type[] AllHarmonyPatchTypes { get; private set; }
+        public FasterPatchCache Cache;
 
         private readonly Stopwatch stopwatch;
 
@@ -30,19 +27,8 @@ namespace FasterPatchAll
             stopwatch.Start();
             Mod = this;
             Settings = GetSettings<Settings>();
-
-            if (Settings.CacheTypesByAssembly)
-            {
-                TypesByAssembly = GenTypes.AllTypes.GroupBy(t => t.Assembly).ToDictionary(g => g.Key, g => g.ToArray());
-            }
-            if (Settings.EarlyFiltering)
-            {
-                AllHarmonyPatchTypes = AppDomain.CurrentDomain.GetAssemblies()
-                    .Select(a => a.GetType("HarmonyLib.HarmonyAttribute", false))
-                    .Where(t => t != null)
-                    .ToArray();
-            }
-
+            Cache = new FasterPatchCache();
+            
             Harmony = new Harmony("OELS.FasterPatchAll");
             Harmony.PatchAll();
         }
@@ -67,7 +53,7 @@ namespace FasterPatchAll
             {
                 try
                 {
-                    Log.Message($"Stopwatch: {stopwatch.ElapsedMilliseconds} ms");
+                    Log.Message($"FasterPatchAll() Active Time: {stopwatch.ElapsedMilliseconds} ms");
                 }
                 catch (Exception e)
                 {
@@ -81,22 +67,25 @@ namespace FasterPatchAll
             listing_Standard.Begin(inRect.BottomPartPixels(inRect.height - 50f));
             listing_Standard.CheckboxLabeled("Cache types by assembly.", ref Settings.CacheTypesByAssembly);
             listing_Standard.CheckboxLabeled("Early filtering to get patch classes.", ref Settings.EarlyFiltering);
+            listing_Standard.CheckboxLabeled("Cache HarmonyFields.", ref Settings.ReflectionCache);
+            listing_Standard.CheckboxLabeled("Cache accessor for HarmonyMethod.", ref Settings.HarmonyMethodTraverseCache);
             listing_Standard.End();
         }
 
-        public static bool CanBeHarmonyClass(Type type)
+        public bool CanBeHarmonyClass(Type type)
         {
             if (type == null || type.ContainsGenericParameters)
             {
                 return false;
             }
-            return AllHarmonyPatchTypes?.Any(p => type.IsDefined(p)) ?? true;
+            return Cache.AllHarmonyAttributeTypes?.Any(p => type.IsDefined(p)) ?? true;
         }
 
         public void Clear()
         {
-            TypesByAssembly = null;
             Harmony.UnpatchAll("OELS.FasterPatchAll");
+            Cache.Clear();
+            Cache = null;
             stopwatch.Stop();
         }
 
@@ -105,7 +94,7 @@ namespace FasterPatchAll
             return "FasterPatchAll()";
         }
 
-        public const int EealyFilterThreshold = 300;
+        public const int EealyFilterThreshold = 400;
     }
 
     [HarmonyPatch(typeof(AccessTools), nameof(AccessTools.GetTypesFromAssembly))]
@@ -118,7 +107,7 @@ namespace FasterPatchAll
 
         static bool Prefix(Assembly assembly, ref Type[] __result)
         {
-            if (FasterPatchAll.Mod.TypesByAssembly?.TryGetValue(assembly, out __result) ?? false)
+            if (FasterPatchAll.Mod.Cache.TypesByAssembly?.TryGetValue(assembly, out __result) ?? false)
             {
                 return false;
             }
@@ -139,7 +128,7 @@ namespace FasterPatchAll
             IEnumerable<Type> types = AccessTools.GetTypesFromAssembly(assembly);
             if (types.Count() > FasterPatchAll.EealyFilterThreshold)
             {
-                types = types.Where(FasterPatchAll.CanBeHarmonyClass);
+                types = types.Where(FasterPatchAll.Mod.CanBeHarmonyClass);
             }
             types.Do(type =>
             {
@@ -162,7 +151,7 @@ namespace FasterPatchAll
             IEnumerable<Type> types = AccessTools.GetTypesFromAssembly(assembly);
             if (types.Count() > FasterPatchAll.EealyFilterThreshold)
             {
-                types = types.Where(FasterPatchAll.CanBeHarmonyClass);
+                types = types.Where(FasterPatchAll.Mod.CanBeHarmonyClass);
             }
             types.Where(type =>
             {
@@ -190,13 +179,96 @@ namespace FasterPatchAll
             IEnumerable<Type> types = AccessTools.GetTypesFromAssembly(assembly);
             if (types.Count() > FasterPatchAll.EealyFilterThreshold)
             {
-                types = types.Where(FasterPatchAll.CanBeHarmonyClass);
+                types = types.Where(FasterPatchAll.Mod.CanBeHarmonyClass);
             }
             types.Select(__instance.CreateClassProcessor).DoIf(patchClass => string.IsNullOrEmpty(patchClass.Category), patchClass =>
             {
                 patchClass.Patch();
             });
             return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(HarmonyMethodExtensions), "GetHarmonyMethodInfo")]
+    internal class Patch_GetHarmonyMethodInfo_GetHarmonyMethodInfo
+    {
+        static bool Prepare()
+        {
+            return FasterPatchAll.Mod.Settings.ReflectionCache;
+        }
+
+        static bool Prefix(object attribute, ref HarmonyMethod __result)
+        {
+            if (!(attribute is HarmonyAttribute harmonyAttribute))
+            {
+                __result = null;
+                return false;
+            }
+            var cache = FasterPatchAll.Mod.Cache;
+            var harmonyMethod = cache.HarmonyAttribute_info(harmonyAttribute);
+            __result = AccessTools.MakeDeepCopy<HarmonyMethod>(harmonyMethod);
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(HarmonyMethod), nameof(HarmonyMethod.HarmonyFields))]
+    internal class Patch_HarmonyMethod_HarmonyFields
+    {
+        static bool Prepare()
+        {
+            return FasterPatchAll.Mod.Settings.ReflectionCache;
+        }
+
+        static bool Prefix(ref List<string> __result)
+        {
+            __result = FasterPatchAll.Mod.Cache.HarmonyFields;
+            return __result == null;
+        }
+    }
+
+    [HarmonyPatch]
+    internal class Patch_Traverse_GetValue
+    {
+        static bool Prepare()
+        {
+            return FasterPatchAll.Mod.Settings.HarmonyMethodTraverseCache;
+        }
+
+        static MethodBase TargetMethod()
+        {
+            return AccessTools.GetDeclaredMethods(typeof(Traverse))
+                .First(m => m.Name == "GetValue" && m.GetParameters().Length == 0 && !m.IsGenericMethodDefinition);
+        }
+
+        static bool Prefix(MemberInfo ____info, object ____root, ref object __result)
+        {
+            if (____root is HarmonyMethod harmonyMethod && ____info is FieldInfo fieldInfo)
+            {
+                var cache = FasterPatchAll.Mod.Cache;
+                __result = cache.GetGetter(fieldInfo)(harmonyMethod);
+                return false;
+            }
+            return true;
+        }
+    }
+
+    [HarmonyPatch(typeof(Traverse), nameof(Traverse.SetValue))]
+    internal class Patch_Traverse_SetValue
+    {
+        static bool Prepare()
+        {
+            return FasterPatchAll.Mod.Settings.HarmonyMethodTraverseCache;
+        }
+
+        static bool Prefix(MemberInfo ____info, object ____root, object value)
+        {
+            if (____root is HarmonyMethod harmonyMethod && ____info is FieldInfo fieldInfo)
+            {
+                var cache = FasterPatchAll.Mod.Cache;
+                cache.GetSetter(fieldInfo)(harmonyMethod, value);
+                return false;
+            }
+            return true;
         }
     }
 
