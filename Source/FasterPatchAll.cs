@@ -67,10 +67,6 @@ namespace FasterPatchAll
             listing_Standard.Begin(inRect.BottomPartPixels(inRect.height - 50f));
             listing_Standard.CheckboxLabeled("Cache types by assembly.", ref Settings.CacheTypesByAssembly);
             listing_Standard.CheckboxLabeled("Early filtering to get patch classes.", ref Settings.EarlyFiltering);
-            var rect = listing_Standard.GetRect(Text.LineHeight);
-            Widgets.Label(rect.LeftHalf(), "Threshold of type count for early filtering.");
-            var text = Settings.EarlyFilterThreshold.ToString();
-            Widgets.IntEntry(rect.RightHalf(), ref Settings.EarlyFilterThreshold, ref text);
             listing_Standard.CheckboxLabeled("Cache HarmonyFields.", ref Settings.ReflectionCache);
             listing_Standard.CheckboxLabeled("Cache accessor for HarmonyMethod.", ref Settings.HarmonyMethodTraverseCache);
             listing_Standard.End();
@@ -127,12 +123,7 @@ namespace FasterPatchAll
 
         static bool Prefix(Harmony __instance, Assembly assembly)
         {
-            IEnumerable<Type> types = AccessTools.GetTypesFromAssembly(assembly);
-            if (types.Count() > FasterPatchAll.Mod.Settings.EarlyFilterThreshold)
-            {
-                types = types.Where(FasterPatchAll.Mod.CanBeHarmonyClass);
-            }
-            types.Do(type =>
+            AccessTools.GetTypesFromAssembly(assembly).DoIf(FasterPatchAll.Mod.CanBeHarmonyClass, type =>
             {
                 __instance.CreateClassProcessor(type).Patch();
             });
@@ -150,20 +141,16 @@ namespace FasterPatchAll
 
         static bool Prefix(Harmony __instance, Assembly assembly, string category)
         {
-            IEnumerable<Type> types = AccessTools.GetTypesFromAssembly(assembly);
-            if (types.Count() > FasterPatchAll.Mod.Settings.EarlyFilterThreshold)
-            {
-                types = types.Where(FasterPatchAll.Mod.CanBeHarmonyClass);
-            }
-            types.Where(type =>
-            {
-                var fromType = HarmonyMethodExtensions.GetFromType(type);
-                var harmonyMethod = HarmonyMethod.Merge(fromType);
-                return harmonyMethod.category == category;
-            }).Do(type =>
-            {
-                __instance.CreateClassProcessor(type).Patch();
-            });
+            AccessTools.GetTypesFromAssembly(assembly).Where(FasterPatchAll.Mod.CanBeHarmonyClass)
+                .Where(type =>
+                {
+                    var fromType = HarmonyMethodExtensions.GetFromType(type);
+                    var harmonyMethod = HarmonyMethod.Merge(fromType);
+                    return harmonyMethod.category == category;
+                }).Do(type =>
+                {
+                    __instance.CreateClassProcessor(type).Patch();
+                });
             return false;
         }
     }
@@ -178,15 +165,11 @@ namespace FasterPatchAll
 
         static bool Prefix(Harmony __instance, Assembly assembly)
         {
-            IEnumerable<Type> types = AccessTools.GetTypesFromAssembly(assembly);
-            if (types.Count() > FasterPatchAll.Mod.Settings.EarlyFilterThreshold)
-            {
-                types = types.Where(FasterPatchAll.Mod.CanBeHarmonyClass);
-            }
-            types.Select(__instance.CreateClassProcessor).DoIf(patchClass => string.IsNullOrEmpty(patchClass.Category), patchClass =>
-            {
-                patchClass.Patch();
-            });
+            AccessTools.GetTypesFromAssembly(assembly).Where(FasterPatchAll.Mod.CanBeHarmonyClass)
+                .Select(__instance.CreateClassProcessor).DoIf(patchClass => string.IsNullOrEmpty(patchClass.Category), patchClass =>
+                {
+                    patchClass.Patch();
+                });
             return false;
         }
     }
